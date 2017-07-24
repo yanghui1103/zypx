@@ -1,0 +1,741 @@
+<?xml version="1.0" encoding="UTF-8" ?>  
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="systemSql">
+	<cache eviction="FIFO" flushInterval="60000" size="1024"
+		readOnly="true" />
+	<!-- 获取用户信息 -->
+	<select id="getStaffInfoById" parameterType="commonModel"
+		resultType="staff">
+		select a.*,(select staff_name from staff where fdid =
+		a.creator)
+		creator_name,
+		(select company_name from company where fdid =
+		a.create_company_id)
+		create_company_name,
+		(select company_name from
+		company cp ,staff2company scc where cp.fdid =
+		scc.company_id and
+		scc.staff_id = a.fdid) company_name,
+		(select fdid from company cp
+		,staff2company scc where cp.fdid =
+		scc.company_id and scc.staff_id =
+		a.fdid) company_id
+		from staff a where a.fdid = #{fdid}
+	</select>
+	<select id="getStaffInfoByNumber" parameterType="commonModel"
+		resultType="staff">
+		select a.*,(select staff_name from staff aa where aa.fdid =
+		a.creator)
+		creator_name,
+		(select company_name from company where fdid =
+		a.create_company_id)
+		create_company_name,
+		(select company_name from
+		company cp ,staff2company scc where cp.fdid =
+		scc.company_id and
+		scc.staff_id = a.fdid) company_name,
+		(select fdid from company cp
+		,staff2company scc where cp.fdid =
+		scc.company_id and scc.staff_id =
+		a.fdid) company_id
+		from staff a where a.staff_number =#{staff_number}
+		and isdeleted='0'
+	</select>
+	<select id="getRoleListByStaffId" parameterType="commonModel"
+		resultType="role">
+		select a.fdid,a.role_name,a.parent_id from roles
+		a,staff2role sl where 1=1
+		and a.fdid = sl.role_id and sl.staff_id =
+		#{fdid}
+	</select>
+	<select id="getPostionListByStaffId" parameterType="commonModel"
+		resultType="postion">
+		select a.fdid,a.postion_name,a.desp from postion
+		a,staff2postion sp where
+		1=1
+		and a.fdid = sp.postion_id and sp.staff_id
+		= #{fdid}
+	</select>
+	<!-- 获取用户直接关联的菜单 -->
+	<select id="getMenuOfStaff" parameterType="commonModel"
+		resultType="commonModel">
+		select mm.*
+		from staff2authority sa,authority au
+		,authority2menu am ,menu mm
+		where 1=1 and sa.authority_id = au.fdid and
+		au.fdid = am.authority and
+		am.menu_id = mm.fdid
+		and au.isdeleted =
+		mm.isdeleted and mm.isdeleted ='0' and sa.staff_id =
+		#{fdid}
+	</select>
+	<!-- 获取用户与角色直接关联的菜单 -->
+	<select id="getMenuOfStaffRole" parameterType="commonModel"
+		resultType="commonModel">
+		select mm.* from staff2role sr,roles rl ,role2authority
+		ra,authority au
+		,authority2menu am ,menu mm
+		where 1=1 and sr.role_id =
+		rl.fdid and rl.fdid = ra.role_id and
+		ra.authority_id = au.fdid
+		and
+		au.fdid = am.authority and am.menu_id = mm.fdid and mm.isdeleted =
+		au.isdeleted
+		and mm.isdeleted = rl.isdeleted and rl.isdeleted ='0'
+		and
+		sr.staff_id = #{fdid}
+	</select>
+	<!-- 获取用户组与角色关联的菜单 -->
+	<select id="getMenuOfStaffGrp" parameterType="commonModel"
+		resultType="commonModel">
+		select mm.* from staff2group sg ,staff_group sgg,role2group
+		rg,roles rl
+		,role2authority ra,authority au,authority2menu am ,menu mm
+		where sg.staff_id = sgg.fdid and sgg.fdid = rg.group_id and rg.role_id
+		=
+		ra.role_id and ra.authority_id = au.fdid and au.fdid = am.authority
+		and am.menu_id = mm.fdid and mm.isdeleted = au.isdeleted and
+		mm.isdeleted = rl.isdeleted and rl.isdeleted = sgg.isdeleted and
+		sgg.isdeleted ='0'
+		and sg.staff_id=#{fdid}
+	</select>
+	<!-- 更改密码 -->
+	<update id="updatePwd" parameterType="commonModel">
+		update staff set password =
+		#{temp_str3} where fdid = #{fdid}
+	</update>
+	<!-- 所有子组织 -->
+	<select id="getChildCompByCurrentComp" parameterType="String"
+		resultType="commonModel">
+		select a.*
+		from company a
+		where isdeleted='0'
+		connect by
+		a.parent_id = prior a.fdid
+		start with a.parent_id =#{fdid} order by
+		company_order asc
+	</select>
+	<select id="getMyCompInfo" parameterType="String" resultType="commonModel">
+		select a.*
+		from company a where fdid =#{fdid}
+	</select>
+	<!-- 所有子组织,包含自己组织 -->
+	<select id="getChildCompsByThisComp" parameterType="String"
+		resultType="commonModel">
+		select a.*
+		from company a
+		where isdeleted='0'
+		connect by
+		a.parent_id = prior a.fdid
+		start with a.parent_id =#{fdid}
+		union
+		select *
+		from company where fdid = #{fdid}
+	</select>
+	<!-- 获取组织列表 -->
+	<select id="getCompanyList" parameterType="commonModel"
+		resultType="commonModel">
+		select a.*,(select company_name from company aa where aa.fdid =
+		a.parent_id) parent_company_name ,
+		(select dict_name from data_dict
+		where dict_value = a.company_type )
+		company_type_name
+		from company a
+		where a.isdeleted='0' and ( a.company_name like
+		'%'||#{keyWords}||'%'
+		or (select company_name from company aa where aa.fdid = a.parent_id)
+		like '%'||#{keyWords}||'%'
+		or (select dict_name from data_dict where
+		dict_value = a.company_type )
+		like '%'||#{keyWords}||'%'
+		or
+		company_address like '%'||#{keyWords}||'%' ) and a.fdid in
+		<foreach item="item" index="index" collection="temp_list"
+			open="(" separator="," close=")">
+			#{item}
+		</foreach>
+		order by version_time desc
+	</select>
+	<!-- 数据字典tree JSON -->
+	<select id="getDataDictList" parameterType="commonModel"
+		resultType="commonModel">
+		select a.*
+		from data_dict a
+		where isdeleted='0'
+		connect by
+		a.parent_id = prior a.fdid
+		start with a.parent_id = #{parent_id} order
+		by num asc
+	</select>
+	<!-- 根据用户id，查询他们关联有效的权限主体 -->
+	<select id="getAuthortiesByStaff" parameterType="commonModel"
+		resultType="commonModel">
+		select ah.*
+		from staff a,staff2authority sa ,authority ah
+		where a.fdid = sa.staff_id and ah.fdid = sa.authority_id
+		and
+		ah.isdeleted ='0' and a.fdid = #{staff_id}
+		union
+		select ah.*
+		from
+		staff2role sr,roles rl,role2authority ra ,authority ah
+		where sr.role_id
+		= ra.role_id and rl.fdid = ra.role_id and rl.isdeleted='0'
+		and
+		ra.authority_id = ah.fdid
+		and ah.isdeleted='0' and sr.staff_id =
+		#{staff_id}
+		union
+		select ah.*
+		from staff2group sg ,staff_group sgg
+		,role2group rg ,roles rl
+		,role2authority ra,authority ah
+		where
+		sg.group_id = sgg.fdid and sgg.isdeleted='0' and sgg.fdid =
+		rg.group_id and rg.role_id = rl.fdid
+		and rl.fdid = ra.role_id and
+		rl.isdeleted='0' and ra.authority_id =
+		ah.fdid and ah.isdeleted ='0'
+		and sg.staff_id = #{staff_id}
+	</select>
+	<!-- 指定的权限拥有的该菜单的按钮 -->
+	<select id="getOperationsByMenuId" parameterType="commonModel"
+		resultType="commonModel">
+		select a.* from operation a where a.foreign_id = #{temp_str1} and
+		a.isdeleted ='0' and a.isdeleted = a.iscontrol
+		union
+		select a.* from
+		operation a,authority2operation ao
+		where a.fdid = ao.operation_id and
+		a.foreign_id = #{temp_str1} and
+		a.isdeleted ='0'
+		and ao.authority in
+		<foreach item="item" index="index" collection="temp_list"
+			open="(" separator="," close=")">
+			#{item}
+		</foreach>
+	</select>
+	<select id="getDictType" parameterType="commonModel" resultType="commonModel">
+		select a.* from data_dict a where a.dict_value =#{dict_value}
+	</select>
+	<!-- 根据父类查询出数据字典的数据 -->
+	<select id="getDictInfo" parameterType="commonModel" resultType="commonModel">
+		select * from data_dict a where a.isdeleted ='0' and a.parent_id =
+		#{parent_id} order by num asc
+	</select>
+	<!-- 保存日志 -->
+	<insert id="logOperation" parameterType="commonModel">
+		insert into log_content
+		(fdid,foreign_id,action_name,log_content,staff_id,version_time,returnInfo)
+		values
+		(#{logId},#{fdid},#{action_name},#{logContent,jdbcType=CLOB},#{staff_id},to_date(#{version_time},'yyyy-MM-dd
+		hh24:mi:ss'),#{returnInfo} )
+	</insert>
+	<!-- 新建组织 -->
+	<insert id="createCompany" parameterType="commonModel">
+		insert into company
+		(fdid,company_name,parent_id,company_type,isdeleted,company_address,creator,create_company_id,company_order,create_time,version_time)
+		values
+		(#{fdid},#{company_name},#{parent_company_id},#{company_type_id},'0',#{company_address},#{staff_id},#{create_company_id},#{company_order},sysdate,sysdate)
+	</insert>
+	<!-- 获取用户列表 -->
+	<select id="getuserList" parameterType="commonModel" resultType="commonModel">
+		select sa.*,cp.company_name,
+		(select dict_name from data_dict where
+		dict_value= cp.company_type)
+		company_type_name,
+		cp.company_address,
+		cp.creator,
+		(select company_name from company where fdid =
+		cp.create_company_id)
+		create_company_name from staff sa ,staff2company
+		scc ,company cp
+		where sa.fdid = scc.staff_id and scc.company_id
+		=cp.fdid
+		and sa.isdeleted ='0' and cp.fdid in
+		<foreach item="item" index="index" collection="temp_list"
+			open="(" separator="," close=")">
+			#{item}
+		</foreach>
+		order by sa.version_time desc
+	</select>
+	<!-- 全部的用户组 -->
+	<select id="getstaffGrpList" parameterType="commonModel"
+		resultType="commonModel">
+		select a.*,
+		(select staff_name from staff where fdid =
+		a.creator) staff_name,
+		(select count(1) from staff2group sg,staff sf
+		where sg.staff_id = sf.fdid and
+		sf.isdeleted='0' and sg.group_id =
+		a.fdid) temp_int1
+		from staff_group a where a.isdeleted ='0'
+	</select>
+	<!-- getroleList -->
+	<select id="getroleList" parameterType="commonModel" resultType="commonModel">
+		select a.*,(select count(1) from staff2role sr ,staff sf where sf.fdid
+		= sr.staff_id and sr.role_id = a.fdid and sf.isdeleted='0') temp_int1,
+		(select count(1) from role2group rg ,staff_group sg where sg.fdid =
+		rg.group_id and sg.isdeleted='0' and rg.role_id = a.fdid) temp_int2,
+		(select count(1) from role2authority ra ,authority ah where ah.fdid =
+		ra.authority_id and ah.isdeleted='0' and ra.role_id = a.fdid )
+		temp_int3
+		from roles a where a.isdeleted='0'
+	</select>
+	<!-- 岗位列表 -->
+	<select id="getpostionList" parameterType="commonModel"
+		resultType="commonModel">
+		select a.*,(select count(1) from staff2postion sp ,staff sa
+		where
+		sp.staff_id = sa.fdid and sa.isdeleted='0' and sp.postion_id =
+		a.fdid ) temp_int1
+		from
+		postion a
+	</select>
+	<!-- 根据父id，查询所有子组织 -->
+	<select id="getAllChildsCompanys" parameterType="commonModel"
+		resultType="commonModel">
+		select a.*
+		from company a
+		where isdeleted='0'
+		connect by
+		a.parent_id = prior a.id
+		start with a.parent_id = #{company_id} order
+		by company_order asc
+	</select>
+	<!-- getjobList -->
+	<select id="getjobList" parameterType="commonModel" resultType="commonModel">
+		select * from jobs a where a.isdeleted='0'
+	</select>
+	<!-- getAttachmentList 外键id关联的附件 -->
+	<select id="getAttachmentList" parameterType="attachment"
+		resultType="attachment">
+		select a.* from attachment a where a.isdeleted='0' and
+		a.foreign_id
+		= #{foreign_id}
+	</select>
+	<select id="getStaffInfoList" parameterType="commonModel"
+		resultType="commonModel">
+		select a.fdid,a.staff_number,a.staff_name keyWords,
+		a.staff_number||'-'||staff_name
+		postion_name,
+		cc.company_id
+		from
+		staff a
+		,staff2company cc
+		where
+		cc.staff_id = a.fdid and a.isdeleted
+		='0'
+		and
+		cc.company_id in
+		<foreach item="item" index="index" collection="temp_list"
+			open="(" separator="," close=")">
+			#{item}
+		</foreach>
+	</select>
+	<select id="getStaffGrpList" parameterType="commonModel"
+		resultType="commonModel">
+		select a.fdid,a.group_name keyWords,group_name desp from
+		staff_group a where
+		a.isdeleted='0'
+	</select>
+	<select id="getPostionList" parameterType="commonModel"
+		resultType="commonModel">
+		select a.fdid,a.postion_name keywords ,postion_name desp
+		from postion a
+	</select>
+	<select id="getRoleList" parameterType="commonModel" resultType="commonModel">
+		select a.fdid,a.role_name keywords ,role_name desp from roles a where
+		a.isdeleted='0'
+	</select>
+	<select id="getCompList" parameterType="commonModel" resultType="commonModel">
+		select a.fdid,a.company_name keywords,company_name desp from company a
+		where
+		a.isdeleted='0' and fdid in
+		<foreach item="item" index="index" collection="temp_list"
+			open="(" separator="," close=")">
+			#{item}
+		</foreach>
+	</select>
+	<!-- 地址本选中并确认 -->
+	<insert id="insertTempRelation" parameterType="commonModel">
+		insert into
+		temp_relation (foreign_id,obj_ids,elementId) values
+		(#{foreign_id},#{temp_str1,jdbcType=CLOB},#{elementId})
+	</insert>
+	<select id="getTempRelation" parameterType="commonModel"
+		resultType="commonModel">
+		select * from
+		temp_relation where foreign_id = #{foreign_id}
+		and elementId =
+		#{elementId}
+	</select>
+	<delete id="delTempRelation" parameterType="commonModel">
+		delete from
+		temp_relation where foreign_id = #{foreign_id} and elementId =
+		#{elementId}
+	</delete>
+	<select id="getObjIdsByFgId" parameterType="commonModel"
+		resultType="commonModel">
+		select obj_ids fdid from temp_relation where
+		foreign_id
+		=#{foreign_id} and elementId = #{elementId}
+	</select>
+	<!-- 查询这些选中ids -->
+	<select id="getSelectedIds" parameterType="commonModel"
+		resultType="commonModel">
+		select cc.* from
+		(select a.fdid,
+		a.staff_name keyWords,
+		a.staff_number ||
+		'-' ||staff_name desp,
+		staff_number
+		from staff a
+		union
+		select aa.fdid
+		,aa.group_name
+		keyWords,group_name desp
+		,'-9' staff_number
+		from
+		staff_group aa
+		union
+		select p.fdid
+		,p.postion_name keyWords ,postion_name
+		desp ,'-9'
+		staff_number
+		from
+		postion p
+		union
+		select rl.fdid ,rl.role_name
+		keyWords,role_name desp,'-9'
+		staff_number
+		from roles rl
+		union
+		select
+		cp.fdid ,company_name
+		keyWords,cp.company_name desp,'-9' staff_number
+		from company cp ) cc
+		where cc.fdid in
+		<foreach item="item" index="index" collection="temp_list"
+			open="(" separator="," close=")">
+			#{item}
+		</foreach>
+	</select>
+	<!-- 根据id获取组织详情 -->
+	<select id="getCompanyDetails" parameterType="company"
+		resultType="company">
+		select a.*,(select company_name from company cp where
+		cp.fdid = a.parent_id
+		) parent_company_name,a.parent_id
+		parent_company_id,a.company_type company_type_id from company a
+		where
+		a.fdid =#{fdid}
+	</select>
+	<!-- 修改组织信息 -->
+	<update id="updateCompany" parameterType="company">
+		update company a set
+		a.company_name = #{company_name},a.parent_id = #{parent_company_id},
+		company_order = #{company_order},company_address =
+		#{company_address},company_type =
+		#{company_type_id},version_time=sysdate where a.fdid =
+		#{fdid}
+	</update>
+	<update id="delCompany" parameterType="commonModel">
+		update company set
+		isdeleted='1' where fdid =#{fdid}
+	</update>
+	<!-- 新建用户资料 -->
+	<insert id="createNewStaff" parameterType="staff">
+		insert into staff
+		(fdid,staff_number,staff_name,password,phone,state,isdeleted,create_time,version_time,creator,create_company_id)
+		values
+		(#{fdid},#{staff_number},#{staff_name},#{passwd},#{phone},'2','0',sysdate,sysdate,#{staff_id},#{create_company_id})
+	</insert>
+	<update id="updateStaff" parameterType="staff">
+		update staff set
+		staff_name=#{staff_name},phone=#{phone},
+		version_time =sysdate where
+		fdid = #{fdid}
+	</update>
+	<insert id="createStaffGrp" parameterType="staff">
+		insert into
+		staff2group (staff_id,group_id)
+		values (#{fdid},#{staff_group_id})
+	</insert>
+	<insert id="createStaffComp" parameterType="staff">
+		insert into
+		staff2company (staff_id,company_id) values
+		(#{fdid},#{company_id})
+	</insert>
+	<insert id="createStaffRole" parameterType="staff">
+		insert into
+		staff2role(staff_id,role_id) values
+		(#{fdid},#{role_id})
+	</insert>
+	<insert id="createStaffPost" parameterType="staff">
+		insert into
+		staff2postion (staff_id,postion_id) values
+		(#{fdid},#{postion_id})
+	</insert>
+	<!-- 删除用户 -->
+	<update id="delStaff" parameterType="commonModel">
+		update staff set
+		isdeleted='1' where fdid = #{fdid}
+	</update>
+	<!-- 获取用户详情 -->
+	<select id="getStaffDetails" parameterType="staff" resultType="staff">
+		select a.*,(select cp.company_name from company cp,staff2company scc
+		where scc.company_id = cp.fdid and scc.staff_id = a.fdid)
+		company_name,
+		(select cp.fdid from company cp,staff2company scc
+		where
+		scc.company_id = cp.fdid and scc.staff_id = a.fdid) company_id
+		from
+		staff a where fdid = #{fdid}
+	</select>
+	<select id="getStaffComp" parameterType="staff" resultType="staff">
+		select * from staff2company scc ,company cp where cp.fdid =
+		scc.company_id and cp.isdeleted ='0'
+		and scc.staff_id = #{fdid}
+	</select>
+	<delete id="delStaffComp" parameterType="staff">
+		delete from
+		staff2company where staff_id = #{fdid}
+	</delete>
+	<select id="getStaffRole" parameterType="staff" resultType="staff">
+		select * from staff2role sl,roles rl
+		where rl.fdid = sl.role_id and
+		rl.isdeleted='0'
+		and sl.staff_id = #{fdid}
+	</select>
+	<delete id="delStaffRole" parameterType="staff">
+		delete from staff2role
+		where staff_id = #{fdid}
+	</delete>
+	<select id="getStaffGrps" parameterType="staff" resultType="staff">
+		select * from staff2group sg,staff_group ss
+		where sg.group_id = ss.fdid
+		and ss.isdeleted ='0'
+		and sg.staff_id = #{fdid}
+	</select>
+	<delete id="delStaffGrps" parameterType="staff">
+		delete from staff2group
+		where staff_id = #{fdid}
+	</delete>
+	<select id="getStaffPost" parameterType="staff" resultType="staff">
+		select * from staff2postion sp where sp.staff_id =#{fdid}
+	</select>
+	<delete id="delStaffPost" parameterType="staff">
+		delete from
+		staff2postion
+		where staff_id = #{fdid}
+	</delete>
+	<select id="getRoleInfoByStaff" parameterType="staff"
+		resultType="commonModel">
+		select distinct rl.fdid,rl.role_name temp_str1 from roles
+		rl,staff2role sr where
+		sr.role_id = rl.fdid
+		and rl.isdeleted ='0' and
+		sr.staff_id = #{fdid}
+	</select>
+
+	<select id="getPostInfoByStaff" parameterType="staff"
+		resultType="commonModel">
+		select distinct pp.fdid,pp.postion_name temp_str1 from
+		staff2postion sp
+		,postion pp
+		where pp.fdid = sp.postion_id and
+		sp.staff_id = #{fdid}
+	</select>
+	<select id="getGrpInfoByStaff" parameterType="staff" resultType="commonModel">
+		select distinct sg.fdid,sg.group_name temp_str1 from staff_group sg
+		,staff2group s2
+		where sg.fdid = s2.group_id and sg.isdeleted ='0' and
+		s2.staff_id =#{fdid}
+	</select>
+	<!-- 如果帐号被一个正常的用户 -->
+	<select id="getStaffNotDelStfId" parameterType="staff"
+		resultType="staff">
+		select * from staff a where a.staff_number =
+		#{staff_number} and
+		a.isdeleted='0'
+	</select>
+	<!-- 新建组 -->
+	<insert id="createStaffGrp2D" parameterType="commonModel">
+		insert into
+		staff_group
+		(fdid,group_name,isdeleted,create_time,creator,create_company_id)
+		values
+		(#{fdid},#{group_name},'0',sysdate,#{staff_id},#{create_company_id})
+	</insert>
+	<insert id="createGrp2Staffs" parameterType="commonModel">
+		insert into
+		staff2group (staff_id,group_id) values
+		(#{temp_str1},#{fdid})
+	</insert>
+	<update id="deleteStaffGroup" parameterType="commonModel">
+		update staff_group
+		set isdeleted='1' where fdid = #{fdid}
+	</update>
+	<select id="getDetailsOfStaffGrp" parameterType="commonModel"
+		resultType="commonModel">
+		select sgg.staff_id,stt.staff_name,sp.group_name from
+		staff2group sgg ,staff stt,staff_group sp
+		where sgg.staff_id = stt.fdid
+		and stt.isdeleted ='0' and sp.fdid =
+		sgg.group_id
+		and sgg.group_id =
+		#{fdid}
+	</select>
+	<!-- 修改用户组资料 -->
+	<update id="updateStaffGrp2D" parameterType="commonModel">
+		update staff_group
+		set group_name=#{group_name} where fdid = #{fdid}
+	</update>
+	<delete id="delGrp2Staffs" parameterType="commonModel">
+		delete from staff2group
+		where group_id = #{fdid}
+	</delete>
+	<select id="getPostionNameExiste" parameterType="commonModel"
+		resultType="commonModel">
+		select * from postion a where
+		postion_name=#{postion_name}
+	</select>
+	<insert id="createPostion" parameterType="commonModel">
+		insert
+		into postion
+		(fdid,postion_name,desp,creator,create_time,create_company_id) values
+		(#{fdid},#{postion_name},#{desp},#{staff_id},sysdate,#{create_company_id})
+	</insert>
+	<delete id="delPostion" parameterType="commonModel">
+		delete from postion where
+		fdid = #{fdid}
+	</delete>
+	<select id="getPostionRelation" parameterType="commonModel"
+		resultType="commonModel">
+		select * from staff2postion a where a.postion_id = #{fdid}
+	</select>
+	<delete id="delPostionRelation" parameterType="commonModel">
+		delete from
+		staff2postion a where a.postion_id = #{fdid}
+	</delete>
+	<select id="getDetailsOfPostion" parameterType="commonModel"
+		resultType="commonModel">
+		select * from postion a where a.fdid = #{fdid}
+	</select>
+	<update id="updatePostion" parameterType="commonModel">
+		update postion set
+		postion_name =#{postion_name},desp=#{desp} where fdid = #{fdid}
+	</update>
+	<!-- 获取整个菜单/操作/页面元素/附件 -->
+	<select id="getAuthTreeAll" parameterType="commonModel"
+		resultType="commonModel">
+		select a.fdid,a.menu_name temp_str1 ,a.parent_id from menu
+		a where
+		a.isdeleted='0'
+		union
+		select op.fdid,op.operate_name
+		temp_str1,op.foreign_id parent_id from
+		operation op where
+		op.isdeleted='0'
+		union
+		select pe.fdid,pe.element_name,ep.menu_id
+		parent_id from page_element
+		pe,authority2element ep where ep.element_id
+		= pe.fdid
+		union
+		select
+		a.fdid,a.file_name temp_str1,aa.menu_id
+		parent_id
+		from attachment a
+		,authority2attachment aa where a.fdid =
+		aa.attachment_id
+		and
+		a.isdeleted='0'
+	</select>
+	<!-- 这些角色list拥有的权限的ids list -->
+	<select id="getMyAuthIdsOfRoles" parameterType="commonModel"
+		resultType="commonModel">
+		select m.fdid from role2authority ra ,authority au
+		,menu
+		m,authority2menu am
+		where 1=1 and ra.authority_id = au.fdid and
+		au.fdid
+		= am.authority and am.menu_id = m.fdid
+		and ra.role_id in
+		<foreach item="item" index="index" collection="temp_list"
+			open="(" separator="," close=")">
+			#{item}
+		</foreach>
+		union
+		select ae.element_id fdid from role2authority ra ,authority au
+		,authority2element ae
+		where 1=1 and ra.authority_id = au.fdid and
+		au.fdid = ae.authority and
+		ra.role_id in
+		<foreach item="item" index="index" collection="temp_list"
+			open="(" separator="," close=")">
+			#{item}
+		</foreach>
+		union
+		select am.fdid from role2authority ra ,authority au
+		,authority2attachment aa
+		,attachment am
+		where 1=1 and ra.authority_id =
+		au.fdid and au.fdid = aa.authority and
+		aa.attachment_id = am.fdid and
+		am.isdeleted='0'
+		and ra.role_id in
+		<foreach item="item" index="index" collection="temp_list"
+			open="(" separator="," close=")">
+			#{item}
+		</foreach>
+		union
+		select op.fdid from
+		role2authority ra ,authority au ,
+		authority2operation ao ,operation op
+		where 1=1 and ra.authority_id =
+		au.fdid and au.fdid = ao.authority and
+		ao.operation_id = op.fdid and
+		op.isdeleted='0'
+		and ra.role_id in
+		<foreach item="item" index="index" collection="temp_list"
+			open="(" separator="," close=")">
+			#{item}
+		</foreach>
+	</select>
+	<select id="getAuthTreeOfMe" parameterType="commonModel"
+		resultType="commonModel">
+		select cc.* from ( select a.fdid,a.menu_name temp_str1 ,a.parent_id
+		from menu
+		a where
+		a.isdeleted='0'
+		union
+		select op.fdid,op.operate_name
+		temp_str1,op.foreign_id parent_id from
+		operation op where
+		op.isdeleted='0'
+		union
+		select pe.fdid,pe.element_name,ep.menu_id
+		parent_id from page_element
+		pe,authority2element ep where ep.element_id
+		= pe.fdid
+		union
+		select a.fdid,a.file_name temp_str1,aa.menu_id
+		parent_id
+		from attachment a
+		,authority2attachment aa where a.fdid =
+		aa.attachment_id
+		and a.isdeleted='0' ) cc where 1=1 and cc.fdid in
+		<foreach item="item" index="index" collection="temp_list"
+			open="(" separator="," close=")">
+			#{item}
+		</foreach>
+	</select>
+	<!-- 根据流程定义id，节点cd查询处理人们 -->
+	<select id="getThisNodeDealers" parameterType="commonModel"
+		resultType="commonModel">
+		select * from flow_dealer a where a.flow_definied_id = #{flowDefinitionId}
+		and a.node_code = #{node_code}
+	</select>
+</mapper>   
