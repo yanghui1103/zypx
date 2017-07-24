@@ -74,8 +74,7 @@
 		<!-- 引用事务增强 -->
 		<aop:advisor pointcut-ref="daoMethod" advice-ref="txAdvice" />
 	</aop:config>
-
-	<!--事务增强 -->
+	<!--事务增强1 -->
 	<tx:advice id="txAdvice" transaction-manager="transactionManager">
 		<!-- 事务属性定义 -->
 		<tx:attributes>
